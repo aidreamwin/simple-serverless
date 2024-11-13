@@ -59,7 +59,7 @@ async def list_functions():
     }
 
 @app.get("/func/{function_name}")
-async def invoke_function(function_name: str, request: Request):
+async def get_function(function_name: str, request: Request):
     if function_name not in functions:
         # 导入函数
         try:
@@ -88,7 +88,27 @@ async def invoke_function(function_name: str, request: Request):
     return JSONResponse(content={"error": "Function not found"}, status_code=404)
 
 @app.post("/func/{function_name}")
-async def invoke_function(function_name: str, request: Request):
+async def post_function(function_name: str, request: Request):
+    if function_name not in functions:
+        # 导入函数
+        try:
+            # 检测文件是否存在
+            if not os.path.exists(f"functions/{function_name}.py"):
+                return JSONResponse(content={"error": "Function not found"}, status_code=404)
+            module = importlib.import_module(f"functions.{function_name}")
+            create_time =  datetime.fromtimestamp(os.path.getctime(f"functions/{function_name}.py")).isoformat()
+            update_time =  datetime.fromtimestamp(os.path.getmtime(f"functions/{function_name}.py")).isoformat()
+            # 保存函数run参数信息 module.run.__annotations__
+            args = module.run.__code__.co_varnames
+            functions[function_name] = dict(
+                module=module,
+                args=args,
+                create_time=create_time,
+                update_time=update_time
+            )
+            print(f"Loaded {function_name}")
+        except Exception as e:
+            return JSONResponse(content={"error": f"Failed to load {function_name}"}, status_code=500)
     if function_name in functions:
         func = getattr(functions[function_name]["module"], "run", None)
         if callable(func):
